@@ -41,7 +41,7 @@ To simplify the solution, Filebox doesn't support symlinks or permissions (chmod
 
 Before designing Filebox's network protocol, I chose to take a look at some other protocols that are used for providing shared access to files over the network. 
 
-The most prominent one was [Server Message Block (SMB)](https://wiki.wireshark.org/SMB2), which is used when you access a network path in Windows such as: `\\MomPC\Share`. An important feature of SMB is that it allows to send multiple requests before getting any response. Matching responses to requests is done by giving each command a sequence number, or ID.
+The most prominent one was [Server Message Block (SMB)](https://wiki.wireshark.org/SMB2), which a TCP-based protocol that is used when you access a network path in Windows such as: `\\MomPC\Share`. An important feature of SMB is that it allows to send multiple requests before getting any response. Matching responses to requests is done by giving each command a sequence number, or ID.
 
 This feature is important for performance because FUSE allows to execute multiple operations in parallel on the virtual directory.  
 
@@ -52,6 +52,8 @@ This feature is important for performance because FUSE allows to execute multipl
 ### Requirements
 
 ## Network Protocol Specification
+
+Filebox protocol is based on TCP port 8763.
 
 ### Header
 
@@ -70,6 +72,5 @@ All messages in Filebox's protocol start with the following header:
 
 Remarks:
  * All integers are little endian.
- * The magic is always 0xFB00FB01. 
+ * The magic is always `0xFB00FB01`. 
  * Currently, the only flag available is the *Response Flag*, which is set if this message is a response (which was sent by the server). Otherwise, it is a request from the client to the server.
- * 
