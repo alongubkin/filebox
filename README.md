@@ -1,4 +1,4 @@
-![FileBox](docs/logo.png =250x57)
+<img src="docs/logo.png" width="300">
 
 FileBox allows remote users to work on the same directory in real-time. 
 
