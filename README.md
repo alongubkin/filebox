@@ -8,7 +8,7 @@ Filebox is my project for the [Networking Workshop](https://www.openu.ac.il/cour
 
 * Support for multiple users in a client-server architecture
 * Real-time - when a user edits a file, the changes are immediatley reflected to other users 
-* The shared directory functions just like a regular directory (this is achieved through [FUSE](https://en.wikipedia.org/wiki/Filesystem_in_Userspace)
+* The shared directory functions just like a regular directory (this is achieved through [FUSE](https://en.wikipedia.org/wiki/Filesystem_in_Userspace))
 * All files are saved in the server's disk
 * Cross platform (Windows, Linux, macOS)
 
