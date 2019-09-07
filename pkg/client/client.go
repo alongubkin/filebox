@@ -1,67 +1,97 @@
 package client
 
 import (
-	"os"
+	"encoding/gob"
+	"fmt"
+	"net"
+	"sync"
+	"sync/atomic"
 
-	"github.com/billziss-gh/cgofuse/fuse"
+	"github.com/alongubkin/filebox/pkg/protocol"
 )
 
-const (
-	filename = "hello"
-	contents = "hello, world\n"
-)
-
-type Hellofs struct {
-	fuse.FileSystemBase
+type FileboxClient struct {
+	connection    net.Conn
+	nextMessageID uint32
+	encoder       *gob.Encoder
+	decoder       *gob.Decoder
+	channels      sync.Map
 }
 
-func (self *Hellofs) Open(path string, flags int) (errc int, fh uint64) {
-	switch path {
-	case "/" + filename:
-		return 0, 0
-	default:
-		return -fuse.ENOENT, ^uint64(0)
+func Connect(address string) (*FileboxClient, error) {
+	connection, err := net.Dial("tcp", address)
+	if err != nil {
+		return nil, err
 	}
-}
 
-func (self *Hellofs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
-	switch path {
-	case "/":
-		stat.Mode = fuse.S_IFDIR | 0555
-		return 0
-	case "/" + filename:
-		stat.Mode = fuse.S_IFREG | 0444
-		stat.Size = int64(len(contents))
-		return 0
-	default:
-		return -fuse.ENOENT
+	client := &FileboxClient{
+		connection, 0,
+		gob.NewEncoder(connection), gob.NewDecoder(connection),
+		sync.Map{},
 	}
+
+	go client.handleMessages()
+	return client, nil
 }
 
-func (self *Hellofs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
-	endofst := ofst + int64(len(buff))
-	if endofst > int64(len(contents)) {
-		endofst = int64(len(contents))
+func (client *FileboxClient) ReadDirectory(path string) ([]protocol.FileInfo, error) {
+	data, err := client.sendAndReceiveMessage(protocol.ReadDirectoryRequestMessage{path})
+	if err != nil {
+		return nil, err
 	}
-	if endofst < ofst {
-		return 0
+
+	response := data.(protocol.ReadDirectoryResponseMessage)
+	return response.Files, nil
+}
+
+func (client *FileboxClient) GetFileAttributes(path string) (*protocol.FileInfo, error) {
+	data, err := client.sendAndReceiveMessage(protocol.GetFileAttributesRequestMessage{path})
+	if err != nil {
+		return nil, err
 	}
-	n = copy(buff, contents[ofst:endofst])
-	return
+
+	response := data.(protocol.GetFileAttributesResponseMessage)
+	return &response.FileInfo, nil
 }
 
-func (self *Hellofs) Readdir(path string,
-	fill func(name string, stat *fuse.Stat_t, ofst int64) bool,
-	ofst int64,
-	fh uint64) (errc int) {
-	fill(".", nil, 0)
-	fill("..", nil, 0)
-	fill(filename, nil, 0)
-	return 0
+func (client *FileboxClient) sendAndReceiveMessage(data interface{}) (interface{}, error) {
+	// Calculate message ID atomically
+	messageID := atomic.AddUint32(&client.nextMessageID, 1)
+
+	// Create the response channel
+	responseChannel := make(chan *protocol.Message)
+	client.channels.Store(messageID, responseChannel)
+	defer client.channels.Delete(messageID)
+
+	// Send message
+	message := &protocol.Message{
+		MessageID:  messageID,
+		IsResponse: false,
+		Data:       data,
+	}
+	if err := client.encoder.Encode(message); err != nil {
+		return nil, err
+	}
+
+	// Wait for response
+	response := <-responseChannel
+	return response.Data, nil
 }
 
-func Run() {
-	hellofs := &Hellofs{}
-	host := fuse.NewFileSystemHost(hellofs)
-	host.Mount("", os.Args[1:])
+func (client *FileboxClient) handleMessages() {
+
+	for {
+		message := &protocol.Message{}
+		if err := client.decoder.Decode(message); err != nil {
+			// TODO: error
+			fmt.Printf("error")
+			return
+		}
+
+		if channel, ok := client.channels.Load(message.MessageID); ok {
+			channel.(chan *protocol.Message) <- message
+		} else {
+			fmt.Printf("Didn't find response channel for message %d\n", message.MessageID)
+		}
+	}
 }

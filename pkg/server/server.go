@@ -1,50 +1,71 @@
 package server
 
 import (
-	"bufio"
+	"encoding/gob"
 	"fmt"
+	"log"
 	"net"
-	"strconv"
-	"strings"
 
 	"github.com/alongubkin/filebox/pkg/protocol"
 )
 
-func handleConnection(client net.Conn) {
-	fmt.Printf("Serving %s\n", client.RemoteAddr().String())
-	for {
-		netData, err := bufio.NewReader(client).ReadString('\n')
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-
-		temp := strings.TrimSpace(string(netData))
-		if temp == "STOP" {
-			break
-		}
-
-		result := strconv.Itoa(1234) + "\n"
-		client.Write([]byte(string(result)))
+func handleMessage(messageHandler *FileboxMessageHandler, encoder *gob.Encoder, message *protocol.Message) {
+	// TODO: Validate !IsResponse
+	// TODO: Validate ID is correct
+	response := &protocol.Message{
+		MessageID:  message.MessageID,
+		IsResponse: true,
 	}
-	client.Close()
+
+	switch request := message.Data.(type) {
+	case protocol.ReadDirectoryRequestMessage:
+		if data := messageHandler.ReadDirectory(request); data != nil {
+			response.Data = data
+		}
+
+	case protocol.GetFileAttributesRequestMessage:
+		if data := messageHandler.GetFileAttributes(request); data != nil {
+			response.Data = data
+		}
+	}
+
+	if err := encoder.Encode(response); err != nil {
+		log.Fatal(err)
+	}
 }
 
-func Run() {
-	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", protocol.FileboxPort))
+func handleConnection(messageHandler *FileboxMessageHandler, connection net.Conn) {
+	encoder := gob.NewEncoder(connection)
+	decoder := gob.NewDecoder(connection)
+
+	for {
+		message := &protocol.Message{}
+
+		err := decoder.Decode(message)
+		if err == nil {
+			go handleMessage(messageHandler, encoder, message)
+		}
+	}
+}
+
+func RunServer(basePath string, port uint16) {
+	listener, err := net.Listen("tcp4", fmt.Sprintf(":%d", port))
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
+
 	defer listener.Close()
 
+	messageHandler := &FileboxMessageHandler{BasePath: basePath}
+
 	for {
-		client, err := listener.Accept()
+		connection, err := listener.Accept()
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
 
-		go handleConnection(client)
+		go handleConnection(messageHandler, connection)
 	}
 }
