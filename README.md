@@ -1,8 +1,8 @@
 <img src="docs/logo.png" width="300">
 
-Filebox allows remote users to work on the same directory in real-time. 
+Filebox allows remote users to work on the same directory in real-time. It's written in Go.
 
-It's written in Go, and it's my project for the [Networking Workshop](https://www.openu.ac.il/courses/20588.htm) of the Open University of Israel.
+Filebox is my project for the [Networking Workshop](https://www.openu.ac.il/courses/20588.htm) of the Open University of Israel.
 
 ## Features
 
