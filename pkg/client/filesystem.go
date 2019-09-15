@@ -6,13 +6,15 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-type Hellofs struct {
+type FileboxFileSystem struct {
 	fuse.FileSystemBase
 	Client *FileboxClient
 }
 
-func (self *Hellofs) Open(path string, flags int) (errc int, fh uint64) {
-	file, err := self.Client.OpenFile(path, flags)
+// Open opens a file.
+// The flags are a combination of the fuse.O_* constants.
+func (fs *FileboxFileSystem) Open(path string, flags int) (errc int, fh uint64) {
+	file, err := fs.Client.OpenFile(path, flags)
 	if err != nil {
 		log.WithField("path", path).WithError(err).Error("OpenFile failed")
 		return -fuse.ENOENT, ^uint64(0)
@@ -26,10 +28,11 @@ func (self *Hellofs) Open(path string, flags int) (errc int, fh uint64) {
 	return 0, file
 }
 
-func (self *Hellofs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
+// Getattr gets file attributes.
+func (fs *FileboxFileSystem) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 	log.Tracef("Get file attributes %s", path)
 
-	file, err := self.Client.GetFileAttributes(path, fh)
+	file, err := fs.Client.GetFileAttributes(path, fh)
 	if err != nil {
 		log.WithField("path", path).WithError(err).Error("GetFileAttributes failed")
 		return -fuse.ENOENT
@@ -39,13 +42,14 @@ func (self *Hellofs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc in
 	return 0
 }
 
-func (self *Hellofs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
+// Read reads data from a file.
+func (fs *FileboxFileSystem) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
 	log.WithFields(log.Fields{
 		"offset": ofst,
 		"size":   len(buff),
 	}).Tracef("Reading file %s", path)
 
-	n, err := self.Client.ReadFile(fh, buff, ofst)
+	n, err := fs.Client.ReadFile(fh, buff, ofst)
 	if err != nil {
 		log.WithField("path", path).WithError(err).Error("ReadFile failed")
 		return n
@@ -54,7 +58,8 @@ func (self *Hellofs) Read(path string, buff []byte, ofst int64, fh uint64) (n in
 	return 0
 }
 
-func (self *Hellofs) Readdir(path string,
+// Readdir reads a directory.
+func (fs *FileboxFileSystem) Readdir(path string,
 	fill func(name string, stat *fuse.Stat_t, ofst int64) bool,
 	ofst int64,
 	fh uint64) (errc int) {
@@ -64,7 +69,7 @@ func (self *Hellofs) Readdir(path string,
 	fill(".", nil, 0)
 	fill("..", nil, 0)
 
-	files, err := self.Client.ReadDirectory(path)
+	files, err := fs.Client.ReadDirectory(path)
 	if err != nil {
 		log.WithField("path", path).WithError(err).Error("ReadDirectory failed")
 		return -fuse.ENOENT
@@ -79,15 +84,24 @@ func (self *Hellofs) Readdir(path string,
 	return 0
 }
 
-func (self *Hellofs) Release(path string, fh uint64) int {
+// Release closes an open file.
+func (fs *FileboxFileSystem) Release(path string, fh uint64) int {
 	log.WithField("fh", fh).Tracef("Closing file %s", path)
 
-	if err := self.Client.CloseFile(fh); err != nil {
+	if err := fs.Client.CloseFile(fh); err != nil {
 		log.WithField("path", path).WithError(err).Error("CloseFile failed")
 	}
 
 	return 0
 }
+
+// func (*FileSystemBase) Mkdir(path string, mode uint32) int
+// func (*FileSystemBase) Mknod(path string, mode uint32, dev uint64) int
+// func (*FileSystemBase) Rename(oldpath string, newpath string) int
+// func (*FileSystemBase) Rmdir(path string) int
+// func (*FileSystemBase) Truncate(path string, size int64, fh uint64) int
+// func (*FileSystemBase) Unlink(path string) int
+// func (*FileSystemBase) Write(path string, buff []byte, ofst int64, fh uint64) int
 
 func convertFileInfo(file *protocol.FileInfo) *fuse.Stat_t {
 	var mode uint32 = 0555

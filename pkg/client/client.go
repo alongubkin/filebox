@@ -118,6 +118,8 @@ func (client *FileboxClient) handleMessages() {
 			return
 		}
 
+		// TODO: Validate IsResponse
+
 		if channel, ok := client.channels.Load(message.MessageID); ok {
 			channel.(chan *protocol.Message) <- message
 		} else {
