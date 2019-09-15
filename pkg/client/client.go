@@ -76,6 +76,15 @@ func (client *FileboxClient) GetFileAttributes(path string, fileHandle uint64) (
 	return &response.FileInfo, nil
 }
 
+func (client *FileboxClient) CloseFile(fileHandle uint64) error {
+	_, err := client.sendAndReceiveMessage(protocol.CloseFileRequestMessage{fileHandle})
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (client *FileboxClient) sendAndReceiveMessage(data interface{}) (interface{}, error) {
 	// Calculate message ID atomically
 	messageID := atomic.AddUint32(&client.nextMessageID, 1)

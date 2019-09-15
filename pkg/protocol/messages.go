@@ -58,6 +58,13 @@ type GetFileAttributesResponseMessage struct {
 	FileInfo FileInfo
 }
 
+type CloseFileRequestMessage struct {
+	FileHandle uint64
+}
+
+type CloseFileResponseMessage struct {
+}
+
 func Init() {
 	gob.Register(OpenFileRequestMessage{})
 	gob.Register(OpenFileResponseMessage{})
@@ -67,4 +74,6 @@ func Init() {
 	gob.Register(ReadDirectoryResponseMessage{})
 	gob.Register(GetFileAttributesRequestMessage{})
 	gob.Register(GetFileAttributesResponseMessage{})
+	gob.Register(CloseFileRequestMessage{})
+	gob.Register(CloseFileResponseMessage{})
 }

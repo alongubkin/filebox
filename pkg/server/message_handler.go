@@ -1,6 +1,7 @@
 package server
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -88,6 +89,19 @@ func (handler *FileboxMessageHandler) GetFileAttributes(request protocol.GetFile
 	return &protocol.GetFileAttributesResponseMessage{
 		FileInfo: convertFileInfo(fileInfo),
 	}
+}
+
+func (handler *FileboxMessageHandler) CloseFile(request protocol.CloseFileRequestMessage) *protocol.CloseFileResponseMessage {
+	file, ok := handler.fileHandles.Load(request.FileHandle)
+	if !ok {
+		return nil
+	}
+
+	fmt.Printf("Closing %d\n", request.FileHandle)
+	file.(*os.File).Close()
+	handler.fileHandles.Delete(request.FileHandle)
+
+	return &protocol.CloseFileResponseMessage{}
 }
 
 func convertFileInfo(file os.FileInfo) protocol.FileInfo {

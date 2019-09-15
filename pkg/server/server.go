@@ -37,6 +37,11 @@ func handleMessage(messageHandler *FileboxMessageHandler, encoder *gob.Encoder, 
 		if data := messageHandler.GetFileAttributes(request); data != nil {
 			response.Data = data
 		}
+
+	case protocol.CloseFileRequestMessage:
+		if data := messageHandler.CloseFile(request); data != nil {
+			response.Data = data
+		}
 	}
 
 	if err := encoder.Encode(response); err != nil {

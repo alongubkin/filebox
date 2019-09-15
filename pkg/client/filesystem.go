@@ -69,6 +69,11 @@ func (self *Hellofs) Readdir(path string,
 	return 0
 }
 
+func (self *Hellofs) Release(path string, fh uint64) int {
+	self.Client.CloseFile(fh)
+	return 0
+}
+
 func convertFileInfo(file *protocol.FileInfo) *fuse.Stat_t {
 	var mode uint32 = 0555
 
