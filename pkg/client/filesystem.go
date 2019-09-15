@@ -1,15 +1,9 @@
 package client
 
 import (
-	"fmt"
-
 	"github.com/alongubkin/filebox/pkg/protocol"
 	"github.com/billziss-gh/cgofuse/fuse"
-)
-
-const (
-	filename = "hello"
-	contents = "hello, world\n"
+	log "github.com/sirupsen/logrus"
 )
 
 type Hellofs struct {
@@ -18,20 +12,26 @@ type Hellofs struct {
 }
 
 func (self *Hellofs) Open(path string, flags int) (errc int, fh uint64) {
-	fmt.Printf("Open %s\n", path)
 	file, err := self.Client.OpenFile(path, flags)
 	if err != nil {
+		log.WithField("path", path).WithError(err).Error("OpenFile failed")
 		return -fuse.ENOENT, ^uint64(0)
 	}
+
+	log.WithFields(log.Fields{
+		"fh":    file,
+		"flags": flags,
+	}).Tracef("Opened file %s", path)
 
 	return 0, file
 }
 
 func (self *Hellofs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
-	fmt.Printf("Getattr %s\n", path)
+	log.Tracef("Get file attributes %s", path)
 
 	file, err := self.Client.GetFileAttributes(path, fh)
 	if err != nil {
+		log.WithField("path", path).WithError(err).Error("GetFileAttributes failed")
 		return -fuse.ENOENT
 	}
 
@@ -40,7 +40,14 @@ func (self *Hellofs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc in
 }
 
 func (self *Hellofs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
-	if n, err := self.Client.ReadFile(fh, buff, ofst); err == nil {
+	log.WithFields(log.Fields{
+		"offset": ofst,
+		"size":   len(buff),
+	}).Tracef("Reading file %s", path)
+
+	n, err := self.Client.ReadFile(fh, buff, ofst)
+	if err != nil {
+		log.WithField("path", path).WithError(err).Error("ReadFile failed")
 		return n
 	}
 
@@ -52,11 +59,14 @@ func (self *Hellofs) Readdir(path string,
 	ofst int64,
 	fh uint64) (errc int) {
 
+	log.WithField("offset", ofst).Tracef("Reading directory %s", path)
+
 	fill(".", nil, 0)
 	fill("..", nil, 0)
 
 	files, err := self.Client.ReadDirectory(path)
 	if err != nil {
+		log.WithField("path", path).WithError(err).Error("ReadDirectory failed")
 		return -fuse.ENOENT
 	}
 
@@ -70,7 +80,12 @@ func (self *Hellofs) Readdir(path string,
 }
 
 func (self *Hellofs) Release(path string, fh uint64) int {
-	self.Client.CloseFile(fh)
+	log.WithField("fh", fh).Tracef("Closing file %s", path)
+
+	if err := self.Client.CloseFile(fh); err != nil {
+		log.WithField("path", path).WithError(err).Error("CloseFile failed")
+	}
+
 	return 0
 }
 

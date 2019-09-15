@@ -2,12 +2,12 @@ package client
 
 import (
 	"encoding/gob"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
 
 	"github.com/alongubkin/filebox/pkg/protocol"
+	log "github.com/sirupsen/logrus"
 )
 
 type FileboxClient struct {
@@ -114,15 +114,14 @@ func (client *FileboxClient) handleMessages() {
 	for {
 		message := &protocol.Message{}
 		if err := client.decoder.Decode(message); err != nil {
-			// TODO: error
-			fmt.Printf("error")
+			log.WithError(err).Fatalf("decoder.Decode() failed")
 			return
 		}
 
 		if channel, ok := client.channels.Load(message.MessageID); ok {
 			channel.(chan *protocol.Message) <- message
 		} else {
-			fmt.Printf("Didn't find response channel for message %d\n", message.MessageID)
+			log.WithField("MessageID", message.MessageID).Warn("Didn't find response channel for message.")
 		}
 	}
 }
