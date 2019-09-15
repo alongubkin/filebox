@@ -18,43 +18,33 @@ type Hellofs struct {
 }
 
 func (self *Hellofs) Open(path string, flags int) (errc int, fh uint64) {
-	fmt.Printf("Open %s", path)
-	switch path {
-	case "/" + filename:
-		return 0, 0
-	default:
+	fmt.Printf("Open %s\n", path)
+	file, err := self.Client.OpenFile(path, flags)
+	if err != nil {
 		return -fuse.ENOENT, ^uint64(0)
 	}
+
+	return 0, file
 }
 
 func (self *Hellofs) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 	fmt.Printf("Getattr %s\n", path)
 
-	file, err := self.Client.GetFileAttributes(path)
+	file, err := self.Client.GetFileAttributes(path, fh)
 	if err != nil {
 		return -fuse.ENOENT
 	}
 
 	*stat = *convertFileInfo(file)
-
-	// Mode = fuse.S_IFDIR | 0555
-	// stat.Size = file.Size
-
-	// *stat = *convertFileInfo(file)
 	return 0
-	// stat = convertFileInfo(file)
 }
 
 func (self *Hellofs) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
-	endofst := ofst + int64(len(buff))
-	if endofst > int64(len(contents)) {
-		endofst = int64(len(contents))
+	if n, err := self.Client.ReadFile(fh, buff, ofst); err == nil {
+		return n
 	}
-	if endofst < ofst {
-		return 0
-	}
-	n = copy(buff, contents[ofst:endofst])
-	return
+
+	return 0
 }
 
 func (self *Hellofs) Readdir(path string,

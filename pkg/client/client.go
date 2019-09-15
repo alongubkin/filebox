@@ -34,6 +34,28 @@ func Connect(address string) (*FileboxClient, error) {
 	return client, nil
 }
 
+func (client *FileboxClient) OpenFile(path string, flags int) (uint64, error) {
+	data, err := client.sendAndReceiveMessage(protocol.OpenFileRequestMessage{path, flags})
+	if err != nil {
+		return 0, err
+	}
+
+	response := data.(protocol.OpenFileResponseMessage)
+	return response.FileHandle, nil
+}
+
+func (client *FileboxClient) ReadFile(fileHandle uint64, buff []byte, offset int64) (int, error) {
+	data, err := client.sendAndReceiveMessage(protocol.ReadFileRequestMessage{fileHandle, offset, len(buff)})
+	if err != nil {
+		return 0, err
+	}
+
+	response := data.(protocol.ReadFileResponseMessage)
+	copy(buff, response.Data)
+
+	return response.BytesRead, err
+}
+
 func (client *FileboxClient) ReadDirectory(path string) ([]protocol.FileInfo, error) {
 	data, err := client.sendAndReceiveMessage(protocol.ReadDirectoryRequestMessage{path})
 	if err != nil {
@@ -44,8 +66,8 @@ func (client *FileboxClient) ReadDirectory(path string) ([]protocol.FileInfo, er
 	return response.Files, nil
 }
 
-func (client *FileboxClient) GetFileAttributes(path string) (*protocol.FileInfo, error) {
-	data, err := client.sendAndReceiveMessage(protocol.GetFileAttributesRequestMessage{path})
+func (client *FileboxClient) GetFileAttributes(path string, fileHandle uint64) (*protocol.FileInfo, error) {
+	data, err := client.sendAndReceiveMessage(protocol.GetFileAttributesRequestMessage{path, fileHandle})
 	if err != nil {
 		return nil, err
 	}

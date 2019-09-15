@@ -21,15 +21,48 @@ type FileInfo struct {
 	IsDir   bool        // abbreviation for Mode().IsDir()
 }
 
-// Read Directory
-type ReadDirectoryRequestMessage struct{ Path string }
-type ReadDirectoryResponseMessage struct{ Files []FileInfo }
+type OpenFileRequestMessage struct {
+	Path  string
+	Flags int
+}
 
-// Get File Attributes
-type GetFileAttributesRequestMessage struct{ Path string }
-type GetFileAttributesResponseMessage struct{ FileInfo FileInfo }
+type OpenFileResponseMessage struct {
+	FileHandle uint64
+}
+
+type ReadFileRequestMessage struct {
+	FileHandle uint64
+	Offset     int64
+	Size       int
+}
+
+type ReadFileResponseMessage struct {
+	Data      []byte
+	BytesRead int
+}
+
+type ReadDirectoryRequestMessage struct {
+	Path string
+}
+
+type ReadDirectoryResponseMessage struct {
+	Files []FileInfo
+}
+
+type GetFileAttributesRequestMessage struct {
+	Path       string
+	FileHandle uint64
+}
+
+type GetFileAttributesResponseMessage struct {
+	FileInfo FileInfo
+}
 
 func Init() {
+	gob.Register(OpenFileRequestMessage{})
+	gob.Register(OpenFileResponseMessage{})
+	gob.Register(ReadFileRequestMessage{})
+	gob.Register(ReadFileResponseMessage{})
 	gob.Register(ReadDirectoryRequestMessage{})
 	gob.Register(ReadDirectoryResponseMessage{})
 	gob.Register(GetFileAttributesRequestMessage{})

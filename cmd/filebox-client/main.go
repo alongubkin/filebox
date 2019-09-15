@@ -21,5 +21,5 @@ func main() {
 
 	hellofs := &client.Hellofs{Client: c}
 	host := fuse.NewFileSystemHost(hellofs)
-	host.Mount("", os.Args[1:])
+	host.Mount(os.Args[1], []string{"-o", "direct_io"})
 }

@@ -4,6 +4,8 @@
 *.dll
 *.so
 *.dylib
+filebox-server
+filebox-client
 
 # Test binary, build with `go test -c`
 *.test

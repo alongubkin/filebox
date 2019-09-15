@@ -18,6 +18,16 @@ func handleMessage(messageHandler *FileboxMessageHandler, encoder *gob.Encoder, 
 	}
 
 	switch request := message.Data.(type) {
+	case protocol.OpenFileRequestMessage:
+		if data := messageHandler.OpenFile(request); data != nil {
+			response.Data = data
+		}
+
+	case protocol.ReadFileRequestMessage:
+		if data := messageHandler.ReadFile(request); data != nil {
+			response.Data = data
+		}
+
 	case protocol.ReadDirectoryRequestMessage:
 		if data := messageHandler.ReadDirectory(request); data != nil {
 			response.Data = data
