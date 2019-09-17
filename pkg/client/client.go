@@ -5,11 +5,14 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/alongubkin/filebox/pkg/protocol"
 	log "github.com/sirupsen/logrus"
 )
 
+// FileboxClient is responsible for managing the client side of the Filebox protocol.
+// In order to create a new FileboxClient, use the Connect method.
 type FileboxClient struct {
 	connection    net.Conn
 	nextMessageID uint32
@@ -18,7 +21,7 @@ type FileboxClient struct {
 	channels      sync.Map
 }
 
-func Connect(address string) (*FileboxClient, error) {
+func Connect(address string, exit chan struct{}) (*FileboxClient, error) {
 	connection, err := net.Dial("tcp", address)
 	if err != nil {
 		return nil, err
@@ -30,62 +33,11 @@ func Connect(address string) (*FileboxClient, error) {
 		sync.Map{},
 	}
 
-	go client.handleMessages()
+	go client.handleMessages(exit)
 	return client, nil
 }
 
-func (client *FileboxClient) OpenFile(path string, flags int) (uint64, error) {
-	data, err := client.sendAndReceiveMessage(protocol.OpenFileRequestMessage{path, flags})
-	if err != nil {
-		return 0, err
-	}
-
-	response := data.(protocol.OpenFileResponseMessage)
-	return response.FileHandle, nil
-}
-
-func (client *FileboxClient) ReadFile(fileHandle uint64, buff []byte, offset int64) (int, error) {
-	data, err := client.sendAndReceiveMessage(protocol.ReadFileRequestMessage{fileHandle, offset, len(buff)})
-	if err != nil {
-		return 0, err
-	}
-
-	response := data.(protocol.ReadFileResponseMessage)
-	copy(buff, response.Data)
-
-	return response.BytesRead, err
-}
-
-func (client *FileboxClient) ReadDirectory(path string) ([]protocol.FileInfo, error) {
-	data, err := client.sendAndReceiveMessage(protocol.ReadDirectoryRequestMessage{path})
-	if err != nil {
-		return nil, err
-	}
-
-	response := data.(protocol.ReadDirectoryResponseMessage)
-	return response.Files, nil
-}
-
-func (client *FileboxClient) GetFileAttributes(path string, fileHandle uint64) (*protocol.FileInfo, error) {
-	data, err := client.sendAndReceiveMessage(protocol.GetFileAttributesRequestMessage{path, fileHandle})
-	if err != nil {
-		return nil, err
-	}
-
-	response := data.(protocol.GetFileAttributesResponseMessage)
-	return &response.FileInfo, nil
-}
-
-func (client *FileboxClient) CloseFile(fileHandle uint64) error {
-	_, err := client.sendAndReceiveMessage(protocol.CloseFileRequestMessage{fileHandle})
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (client *FileboxClient) sendAndReceiveMessage(data interface{}) (interface{}, error) {
+func (client *FileboxClient) SendReceive(data interface{}) (interface{}, bool) {
 	// Calculate message ID atomically
 	messageID := atomic.AddUint32(&client.nextMessageID, 1)
 
@@ -101,20 +53,25 @@ func (client *FileboxClient) sendAndReceiveMessage(data interface{}) (interface{
 		Data:       data,
 	}
 	if err := client.encoder.Encode(message); err != nil {
-		return nil, err
+		return nil, false
 	}
 
 	// Wait for response
-	response := <-responseChannel
-	return response.Data, nil
+	select {
+	case response := <-responseChannel:
+		return response.Data, response.Success
+
+	case <-time.After(3 * time.Second):
+		return nil, false
+	}
 }
 
-func (client *FileboxClient) handleMessages() {
-
+func (client *FileboxClient) handleMessages(exit chan struct{}) {
 	for {
 		message := &protocol.Message{}
 		if err := client.decoder.Decode(message); err != nil {
-			log.WithError(err).Fatalf("decoder.Decode() failed")
+			log.WithError(err).Error("decoder.Decode() failed")
+			close(exit)
 			return
 		}
 

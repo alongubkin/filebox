@@ -23,7 +23,9 @@ func main() {
 
 	protocol.Init()
 
-	c, err := client.Connect(*address)
+	exit := make(chan struct{})
+
+	c, err := client.Connect(*address, exit)
 	if err != nil {
 		log.WithError(err).Fatal("Can't connect to Filebox server")
 		return
@@ -32,6 +34,15 @@ func main() {
 	log.Info("Connected.")
 
 	fs := &client.FileboxFileSystem{Client: c}
+
 	host := fuse.NewFileSystemHost(fs)
+
+	go func() {
+		<-exit
+
+		log.Info("Unmounting.")
+		host.Unmount()
+	}()
+
 	host.Mount(*mountpoint, []string{"-o", "direct_io"})
 }

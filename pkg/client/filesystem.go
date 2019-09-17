@@ -14,31 +14,48 @@ type FileboxFileSystem struct {
 // Open opens a file.
 // The flags are a combination of the fuse.O_* constants.
 func (fs *FileboxFileSystem) Open(path string, flags int) (errc int, fh uint64) {
-	file, err := fs.Client.OpenFile(path, flags)
-	if err != nil {
-		log.WithField("path", path).WithError(err).Error("OpenFile failed")
+	response, ok := fs.Client.SendReceive(protocol.OpenFileRequest{
+		Path:  path,
+		Flags: flags,
+	})
+
+	if !ok {
+		log.WithField("path", path).Error("OpenFile failed")
 		return -fuse.ENOENT, ^uint64(0)
 	}
 
 	log.WithFields(log.Fields{
-		"fh":    file,
+		"fh":    response.(protocol.OpenFileResponse).FileHandle,
 		"flags": flags,
 	}).Tracef("Opened file %s", path)
 
-	return 0, file
+	return 0, response.(protocol.OpenFileResponse).FileHandle
 }
 
 // Getattr gets file attributes.
 func (fs *FileboxFileSystem) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 	log.Tracef("Get file attributes %s", path)
 
-	file, err := fs.Client.GetFileAttributes(path, fh)
-	if err != nil {
-		log.WithField("path", path).WithError(err).Error("GetFileAttributes failed")
+	response, ok := fs.Client.SendReceive(protocol.GetFileAttributesRequest{
+		Path:       path,
+		FileHandle: fh,
+	})
+
+	log.Tracef("Get file attributes2 %s", path)
+
+	if !ok {
+		log.WithField("path", path).Error("GetFileAttributes failed")
 		return -fuse.ENOENT
 	}
 
-	*stat = *convertFileInfo(file)
+	log.Tracef("Get file attributes3 %s", path)
+
+	fileInfo := response.(protocol.GetFileAttributesResponse).FileInfo
+	log.Tracef("Get file attributes4 %s", path)
+
+	*stat = *convertFileInfo(&fileInfo)
+	log.Tracef("Get file attributes5 %s", path)
+
 	return 0
 }
 
@@ -49,13 +66,19 @@ func (fs *FileboxFileSystem) Read(path string, buff []byte, ofst int64, fh uint6
 		"size":   len(buff),
 	}).Tracef("Reading file %s", path)
 
-	n, err := fs.Client.ReadFile(fh, buff, ofst)
-	if err != nil {
-		log.WithField("path", path).WithError(err).Error("ReadFile failed")
-		return n
+	response, ok := fs.Client.SendReceive(protocol.ReadFileRequest{
+		FileHandle: fh,
+		Offset:     ofst,
+		Size:       len(buff),
+	})
+
+	if !ok {
+		log.WithField("path", path).Error("ReadFile failed")
+		return 0
 	}
 
-	return 0
+	copy(buff, response.(protocol.ReadFileResponse).Data)
+	return response.(protocol.ReadFileResponse).BytesRead
 }
 
 // Readdir reads a directory.
@@ -69,13 +92,16 @@ func (fs *FileboxFileSystem) Readdir(path string,
 	fill(".", nil, 0)
 	fill("..", nil, 0)
 
-	files, err := fs.Client.ReadDirectory(path)
-	if err != nil {
-		log.WithField("path", path).WithError(err).Error("ReadDirectory failed")
+	response, ok := fs.Client.SendReceive(protocol.ReadDirectoryRequest{
+		Path: path,
+	})
+
+	if !ok {
+		log.WithField("path", path).Error("ReadDirectory failed")
 		return -fuse.ENOENT
 	}
 
-	for _, file := range files {
+	for _, file := range response.(protocol.ReadDirectoryResponse).Files {
 		if !fill(file.Name, convertFileInfo(&file), 0) {
 			break
 		}
@@ -88,23 +114,134 @@ func (fs *FileboxFileSystem) Readdir(path string,
 func (fs *FileboxFileSystem) Release(path string, fh uint64) int {
 	log.WithField("fh", fh).Tracef("Closing file %s", path)
 
-	if err := fs.Client.CloseFile(fh); err != nil {
-		log.WithField("path", path).WithError(err).Error("CloseFile failed")
+	if _, ok := fs.Client.SendReceive(protocol.CloseFileRequest{fh}); !ok {
+		log.WithField("path", path).Error("CloseFile failed")
 	}
 
 	return 0
 }
 
-// func (*FileSystemBase) Mkdir(path string, mode uint32) int
-// func (*FileSystemBase) Mknod(path string, mode uint32, dev uint64) int
-// func (*FileSystemBase) Rename(oldpath string, newpath string) int
-// func (*FileSystemBase) Rmdir(path string) int
-// func (*FileSystemBase) Truncate(path string, size int64, fh uint64) int
-// func (*FileSystemBase) Unlink(path string) int
-// func (*FileSystemBase) Write(path string, buff []byte, ofst int64, fh uint64) int
+// Mkdir creates a directory.
+func (fs *FileboxFileSystem) Mkdir(path string, mode uint32) int {
+	log.Tracef("Creating directory %s", path)
+
+	if _, ok := fs.Client.SendReceive(protocol.CreateDirectoryRequest{path, mode}); !ok {
+		log.WithField("path", path).Error("CreateDirectory failed")
+		return -fuse.EIO
+	}
+
+	return 0
+}
+
+// Mknod creates a file.
+func (fs *FileboxFileSystem) Mknod(path string, mode uint32, dev uint64) int {
+	log.Tracef("Creating file %s", path)
+
+	if (mode & fuse.S_IFREG) == 0 {
+		log.WithFields(log.Fields{
+			"path": path,
+			"mode": mode,
+			"dev":  dev,
+		}).Errorf("Invalid file mode. ")
+		return fuse.EINVAL
+	}
+
+	if _, ok := fs.Client.SendReceive(protocol.CreateFileRequest{path}); !ok {
+		log.WithField("path", path).Error("CreateFile failed")
+		return -fuse.EIO
+	}
+
+	return 0
+}
+
+// Rename renames a file.
+func (fs *FileboxFileSystem) Rename(oldpath string, newpath string) int {
+	log.Tracef("Renaming %s to %s", oldpath, newpath)
+
+	_, ok := fs.Client.SendReceive(protocol.RenameRequest{
+		OldPath: oldpath,
+		NewPath: newpath,
+	})
+
+	if !ok {
+		log.WithFields(log.Fields{
+			"oldpath": oldpath,
+			"newpath": newpath,
+		}).Error("Rename failed")
+	}
+
+	return 0
+}
+
+// Rmdir removes a directory.
+func (fs *FileboxFileSystem) Rmdir(path string) int {
+	log.Tracef("Deleting directory %s", path)
+
+	if _, ok := fs.Client.SendReceive(protocol.DeleteDirectoryRequest{path}); !ok {
+		log.WithField("path", path).Error("DeleteDirectory failed")
+		return -fuse.EIO
+	}
+
+	return 0
+}
+
+// Truncate changes the size of a file.
+func (fs *FileboxFileSystem) Truncate(path string, size int64, fh uint64) int {
+	log.Tracef("Truncating %s", path)
+
+	_, ok := fs.Client.SendReceive(protocol.TruncateRequest{
+		Path:       path,
+		Size:       size,
+		FileHandle: fh,
+	})
+
+	if !ok {
+		log.WithFields(log.Fields{
+			"path": path,
+			"size": size,
+			"fh":   fh,
+		}).Error("Truncate failed")
+		return -fuse.EIO
+	}
+
+	return 0
+}
+
+// Unlink removes a file.
+func (fs *FileboxFileSystem) Unlink(path string) int {
+	log.Tracef("Deleting file %s", path)
+
+	if _, ok := fs.Client.SendReceive(protocol.DeleteFileRequest{path}); !ok {
+		log.WithField("path", path).Error("Truncate failed")
+		return -fuse.EIO
+	}
+
+	return 0
+}
+
+// Write writes data to a file.
+func (fs *FileboxFileSystem) Write(path string, buff []byte, ofst int64, fh uint64) int {
+	log.WithFields(log.Fields{
+		"offset": ofst,
+		"size":   len(buff),
+	}).Tracef("Writing file %s", path)
+
+	response, ok := fs.Client.SendReceive(protocol.WriteFileRequest{
+		FileHandle: fh,
+		Data:       buff,
+		Offset:     ofst,
+	})
+
+	if !ok {
+		log.WithField("path", path).Error("WriteFile failed")
+		return -fuse.EIO
+	}
+
+	return response.(protocol.WriteFileResponse).BytesWritten
+}
 
 func convertFileInfo(file *protocol.FileInfo) *fuse.Stat_t {
-	var mode uint32 = 0555
+	var mode uint32 = 0777
 
 	if file.Mode.IsDir() {
 		mode |= fuse.S_IFDIR

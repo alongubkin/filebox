@@ -10,8 +10,10 @@ type Message struct {
 	MessageID  uint32
 	IsResponse bool
 	Data       interface{}
-	Error      error
+	Success    bool
 }
+
+type EmptyResponse struct{}
 
 type FileInfo struct {
 	Name    string      // base name of the file
@@ -21,59 +23,102 @@ type FileInfo struct {
 	IsDir   bool        // abbreviation for Mode().IsDir()
 }
 
-type OpenFileRequestMessage struct {
+type OpenFileRequest struct {
 	Path  string
 	Flags int
 }
 
-type OpenFileResponseMessage struct {
+type OpenFileResponse struct {
 	FileHandle uint64
 }
 
-type ReadFileRequestMessage struct {
+type ReadFileRequest struct {
 	FileHandle uint64
 	Offset     int64
 	Size       int
 }
 
-type ReadFileResponseMessage struct {
+type ReadFileResponse struct {
 	Data      []byte
 	BytesRead int
 }
 
-type ReadDirectoryRequestMessage struct {
+type ReadDirectoryRequest struct {
 	Path string
 }
 
-type ReadDirectoryResponseMessage struct {
+type ReadDirectoryResponse struct {
 	Files []FileInfo
 }
 
-type GetFileAttributesRequestMessage struct {
+type GetFileAttributesRequest struct {
 	Path       string
 	FileHandle uint64
 }
 
-type GetFileAttributesResponseMessage struct {
+type GetFileAttributesResponse struct {
 	FileInfo FileInfo
 }
 
-type CloseFileRequestMessage struct {
+type CloseFileRequest struct {
 	FileHandle uint64
 }
 
-type CloseFileResponseMessage struct {
+type CreateDirectoryRequest struct {
+	Path string
+	Mode uint32
+}
+
+type CreateFileRequest struct {
+	Path string
+}
+
+type RenameRequest struct {
+	OldPath string
+	NewPath string
+}
+
+type DeleteDirectoryRequest struct {
+	Path string
+}
+
+type TruncateRequest struct {
+	Path       string
+	FileHandle uint64
+	Size       int64
+}
+
+type DeleteFileRequest struct {
+	Path string
+}
+
+type WriteFileRequest struct {
+	FileHandle uint64
+	Offset     int64
+	Data       []byte
+}
+
+type WriteFileResponse struct {
+	BytesWritten int
 }
 
 func Init() {
-	gob.Register(OpenFileRequestMessage{})
-	gob.Register(OpenFileResponseMessage{})
-	gob.Register(ReadFileRequestMessage{})
-	gob.Register(ReadFileResponseMessage{})
-	gob.Register(ReadDirectoryRequestMessage{})
-	gob.Register(ReadDirectoryResponseMessage{})
-	gob.Register(GetFileAttributesRequestMessage{})
-	gob.Register(GetFileAttributesResponseMessage{})
-	gob.Register(CloseFileRequestMessage{})
-	gob.Register(CloseFileResponseMessage{})
+	gob.Register(EmptyResponse{})
+	gob.Register(OpenFileRequest{})
+	gob.Register(OpenFileResponse{})
+	gob.Register(ReadFileRequest{})
+	gob.Register(ReadFileResponse{})
+	gob.Register(ReadDirectoryRequest{})
+	gob.Register(ReadDirectoryResponse{})
+	gob.Register(GetFileAttributesRequest{})
+	gob.Register(GetFileAttributesResponse{})
+	gob.Register(CloseFileRequest{})
+	gob.Register(CreateDirectoryRequest{})
+	gob.Register(CreateFileRequest{})
+	gob.Register(RenameRequest{})
+	gob.Register(DeleteDirectoryRequest{})
+	gob.Register(TruncateRequest{})
+	gob.Register(DeleteFileRequest{})
+	gob.Register(WriteFileRequest{})
+	gob.Register(WriteFileResponse{})
 }

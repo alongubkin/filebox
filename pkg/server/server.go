@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"reflect"
 
 	"github.com/alongubkin/filebox/pkg/protocol"
 	log "github.com/sirupsen/logrus"
@@ -18,32 +19,55 @@ func handleMessage(messageHandler *FileboxMessageHandler, encoder *gob.Encoder, 
 		IsResponse: true,
 	}
 
+	var err error
+	var data interface{}
+
 	switch request := message.Data.(type) {
-	case protocol.OpenFileRequestMessage:
-		if data := messageHandler.OpenFile(request); data != nil {
-			response.Data = data
-		}
+	case protocol.OpenFileRequest:
+		data, err = messageHandler.OpenFile(request)
 
-	case protocol.ReadFileRequestMessage:
-		if data := messageHandler.ReadFile(request); data != nil {
-			response.Data = data
-		}
+	case protocol.ReadFileRequest:
+		data, err = messageHandler.ReadFile(request)
 
-	case protocol.ReadDirectoryRequestMessage:
-		if data := messageHandler.ReadDirectory(request); data != nil {
-			response.Data = data
-		}
+	case protocol.ReadDirectoryRequest:
+		data, err = messageHandler.ReadDirectory(request)
 
-	case protocol.GetFileAttributesRequestMessage:
-		if data := messageHandler.GetFileAttributes(request); data != nil {
-			response.Data = data
-		}
+	case protocol.GetFileAttributesRequest:
+		data, err = messageHandler.GetFileAttributes(request)
 
-	case protocol.CloseFileRequestMessage:
-		if data := messageHandler.CloseFile(request); data != nil {
-			response.Data = data
-		}
+	case protocol.CloseFileRequest:
+		err = messageHandler.CloseFile(request)
+
+	case protocol.CreateDirectoryRequest:
+		err = messageHandler.CreateDirectory(request)
+
+	case protocol.CreateFileRequest:
+		err = messageHandler.CreateFile(request)
+
+	case protocol.RenameRequest:
+		err = messageHandler.Rename(request)
+
+	case protocol.DeleteDirectoryRequest:
+		err = messageHandler.DeleteDirectory(request)
+
+	case protocol.TruncateRequest:
+		err = messageHandler.Truncate(request)
+
+	case protocol.DeleteFileRequest:
+		err = messageHandler.DeleteFile(request)
+
+	case protocol.WriteFileRequest:
+		data, err = messageHandler.WriteFile(request)
 	}
+
+	// data == nil won't work here because in Go, nil.(interface{}) != nil.(MyCommandResponse)
+	if val := reflect.ValueOf(data); !val.IsValid() || val.IsNil() {
+		response.Data = &protocol.EmptyResponse{}
+	} else {
+		response.Data = data
+	}
+
+	response.Success = (err == nil)
 
 	if err := encoder.Encode(response); err != nil {
 		log.WithError(err).Error("encoder.Encode failed")
