@@ -5,9 +5,9 @@ from filebox import shared_directories
 def test_write_and_delete_file(shared_directories):
   """
   Write a file to directory A, make sure it appears correctly in all other directories,
-  then delete it in directory A, and make sure it disappears in all other directories.
+  then delete it in directory A, make sure it disappears in all other directories.
 
-  A is each one of the server directory + all client directories.
+  (where A is each one of shared directories)
   """
   for i, directory in enumerate(shared_directories):
     filename = 'myfile{}.txt'.format(i)
