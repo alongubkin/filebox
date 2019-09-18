@@ -21,7 +21,7 @@ type FileboxMessageHandler struct {
 }
 
 func (handler *FileboxMessageHandler) OpenFile(request protocol.OpenFileRequest) (*protocol.OpenFileResponse, error) {
-	file, err := os.OpenFile(path.Join(handler.BasePath, request.Path), request.Flags & ^os.O_EXCL, 0777)
+	file, err := os.OpenFile(path.Join(handler.BasePath, request.Path), request.Flags & ^os.O_EXCL, 00777)
 	if err != nil {
 		log.WithField("path", request.Path).WithError(err).Error("OpenFile failed")
 		return nil, err

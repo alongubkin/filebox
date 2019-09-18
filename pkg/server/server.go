@@ -12,8 +12,10 @@ import (
 )
 
 func handleMessage(messageHandler *FileboxMessageHandler, encoder *gob.Encoder, message *protocol.Message) {
-	// TODO: Validate !IsResponse
-	// TODO: Validate ID is correct
+	if message.IsResponse {
+		log.Warn("Got a message from a client with IsResponse flag turned on. Ignoring")
+	}
+
 	response := &protocol.Message{
 		MessageID:  message.MessageID,
 		IsResponse: true,

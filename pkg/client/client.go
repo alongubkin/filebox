@@ -75,7 +75,11 @@ func (client *FileboxClient) handleMessages(exit chan struct{}) {
 			return
 		}
 
-		// TODO: Validate IsResponse
+		if !message.IsResponse {
+			log.Error("Got a message from the server with IsResponse flag turned off. Exiting")
+			close(exit)
+			return
+		}
 
 		if channel, ok := client.channels.Load(message.MessageID); ok {
 			channel.(chan *protocol.Message) <- message

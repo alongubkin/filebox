@@ -1,6 +1,8 @@
 package main
 
 import (
+	"runtime"
+
 	"github.com/alongubkin/filebox/pkg/client"
 	"github.com/alongubkin/filebox/pkg/protocol"
 	"github.com/billziss-gh/cgofuse/fuse"
@@ -44,5 +46,29 @@ func main() {
 		host.Unmount()
 	}()
 
-	host.Mount(*mountpoint, []string{"-o", "direct_io"})
+	options := []string{
+		"-o", "fsname=filebox",
+		"-o", "subtype=filebox",
+		"-o", "direct_io",
+	}
+
+	// OSX options
+	if runtime.GOOS == "darwin" {
+		options = append(options, "-o", "noappledouble")
+		options = append(options, "-o", "noapplexattr")
+	}
+
+	// Windows options
+	if runtime.GOOS == "windows" {
+		// These cause WinFsp to mean the current user
+		options = append(options, "-o", "uid=-1")
+		options = append(options, "-o", "gid=-1")
+		options = append(options, "--FileSystemName=filebox")
+	}
+
+	if runtime.GOOS == "darwin" || runtime.GOOS == "windows" {
+		options = append(options, "-o", "volname=Filebox")
+	}
+
+	host.Mount(*mountpoint, options)
 }

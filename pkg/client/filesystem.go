@@ -1,6 +1,8 @@
 package client
 
 import (
+	"runtime"
+
 	"github.com/alongubkin/filebox/pkg/protocol"
 	"github.com/billziss-gh/cgofuse/fuse"
 	log "github.com/sirupsen/logrus"
@@ -41,21 +43,13 @@ func (fs *FileboxFileSystem) Getattr(path string, stat *fuse.Stat_t, fh uint64) 
 		FileHandle: fh,
 	})
 
-	log.Tracef("Get file attributes2 %s", path)
-
 	if !ok {
-		log.WithField("path", path).Error("GetFileAttributes failed")
+		log.WithField("path", path).Warn("GetFileAttributes failed")
 		return -fuse.ENOENT
 	}
 
-	log.Tracef("Get file attributes3 %s", path)
-
 	fileInfo := response.(protocol.GetFileAttributesResponse).FileInfo
-	log.Tracef("Get file attributes4 %s", path)
-
 	*stat = *convertFileInfo(&fileInfo)
-	log.Tracef("Get file attributes5 %s", path)
-
 	return 0
 }
 
@@ -240,8 +234,28 @@ func (fs *FileboxFileSystem) Write(path string, buff []byte, ofst int64, fh uint
 	return response.(protocol.WriteFileResponse).BytesWritten
 }
 
+func (fs *FileboxFileSystem) Statfs(path string, stat *fuse.Statfs_t) int {
+	log.Tracef("Statfs %s", path)
+
+	const blockSize = 4096
+	const fsBlocks = (1 << 50) / blockSize
+	stat.Blocks = fsBlocks  // Total data blocks in file system.
+	stat.Bfree = fsBlocks   // Free blocks in file system.
+	stat.Bavail = fsBlocks  // Free blocks in file system if you're not root.
+	stat.Files = 1e9        // Total files in file system.
+	stat.Ffree = 1e9        // Free files in file system.
+	stat.Bsize = blockSize  // Block size
+	stat.Frsize = blockSize // Fragment size, smallest addressable data size in the file system.
+
+	clipBlocks(&stat.Blocks)
+	clipBlocks(&stat.Bfree)
+	clipBlocks(&stat.Bavail)
+
+	return 0
+}
+
 func convertFileInfo(file *protocol.FileInfo) *fuse.Stat_t {
-	var mode uint32 = 0777
+	var mode uint32 = 00777
 
 	if file.Mode.IsDir() {
 		mode |= fuse.S_IFDIR
@@ -255,5 +269,24 @@ func convertFileInfo(file *protocol.FileInfo) *fuse.Stat_t {
 		Mode: mode,
 		Size: file.Size,
 		Mtim: fuse.NewTimespec(file.ModTime),
+	}
+}
+
+// ClipBlocks clips the blocks pointed to to the OS max
+func clipBlocks(b *uint64) {
+	var max uint64
+	switch runtime.GOOS {
+	case "windows":
+		max = (1 << 43) - 1
+	case "darwin":
+		// OSX FUSE only supports 32 bit number of blocks
+		// https://github.com/osxfuse/osxfuse/issues/396
+		max = (1 << 32) - 1
+	default:
+		// no clipping
+		return
+	}
+	if *b > max {
+		*b = max
 	}
 }
