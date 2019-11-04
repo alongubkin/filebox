@@ -132,7 +132,7 @@ Messages from client to server are request messages (e.g, `CreateFileRequest`), 
 
 `Data` contains a specific request / response message struct, depending on the message type. For example: `CreateFileRequest`, `ReadFileResponse`, etc. The gob library supports deserializing dynamic types such as `interface{}` (which is like `void*` in C).
 
-## Example command: ReadFile
+### Example command: ReadFile
 
 The ReadFile command consists of the following request parameters:
 
@@ -151,7 +151,7 @@ The response looks like:
         BytesRead int
     }
 
-## File info
+### File info
 
 Various commands return information about one or more files, e.g: `GetFileAttributes`, `ReadDirectory`. Therefore, I use a generic `FileInfo` struct which looks like:
 
