@@ -108,6 +108,7 @@ In order to support dynamically-sized structs (e.g structs that contain strings)
 
 ### Modules
 
+TODO: concurrency, go channels, atomic
 
 ## Network Protocol Specification
 
@@ -115,9 +116,9 @@ The Filebox protocol is based on TCP. It is a request-response protocol like HTT
 
 The protocol is defined in [pkg/protocol/messages.go](pkg/protocol/messages.go).
 
-### Header
+### Message Structure
 
-All messages in Filebox's protocol start with the following header:
+All messages in Filebox's protocol look like:
 
     type Message struct {
         MessageID  uint32
