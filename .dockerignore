@@ -1,0 +1,10 @@
+.git
+.ipynb_checkpoints/*
+.pytest_cache
+.vscode
+Dockerfile
+.DS_Store
+.gitignore
+README.md
+env.*
+/tmp/*
