@@ -5,13 +5,27 @@ import contextlib
 import subprocess
 import socket
 import time
+import platform
+import glob
 
-FILEBOX_BASE_PATH = os.path.join(os.path.dirname(__file__), '..')
+FILEBOX_BASE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..')
 FILEBOX_TEST_PORT = 8763
-FILEBOX_SERVER_PATH = os.path.join(FILEBOX_BASE_PATH, 'filebox-server')
-FILEBOX_CLIENT_PATH = os.path.join(FILEBOX_BASE_PATH, 'filebox-client')
-
 CLIENTS = 5
+
+def get_filebox_executable(exe_type):
+  ARCH = {
+    'i386': '386',
+    'x86_64': 'amd64',
+  }
+
+  exe_filter = '{}-{}*-{}*'.format(
+    exe_type, platform.system().lower(), ARCH[platform.machine()])
+
+  matches = glob.glob(os.path.join(FILEBOX_BASE_PATH, 'build', exe_filter)) + \
+    glob.glob(os.path.join('/build', exe_filter))
+
+  return matches[0]
+
 
 def check_socket(host, port):
   with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as sock:
@@ -27,7 +41,7 @@ def filebox_server():
 
   with tempfile.TemporaryDirectory() as server_directory:
     server_process = subprocess.Popen([
-      FILEBOX_SERVER_PATH,
+      get_filebox_executable('filebox-server'),
       '--path', server_directory,
       '--port', str(FILEBOX_TEST_PORT),
       '--verbose',
@@ -49,7 +63,7 @@ def filebox_client():
 
   with tempfile.TemporaryDirectory() as client_directory:
     client_process = subprocess.Popen([
-      FILEBOX_CLIENT_PATH,
+      get_filebox_executable('filebox-client'),
       '--mountpoint', client_directory,
       '--address', 'localhost:{}'.format(FILEBOX_TEST_PORT),
       '--verbose',

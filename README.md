@@ -12,6 +12,69 @@ Filebox is my project for the [Networking Workshop](https://www.openu.ac.il/cour
 * All files are saved in the server's disk
 * Cross platform (Windows, Linux, macOS)
 
+## Usage
+
+First, download the client and server binaries for your operating system from the [GitHub's releases section](https://github.com/alongubkin/filebox/releases).
+
+The following command will open a Filebox server in TCP port 8763. Note that you can choose the directory you want to share via the --path argument:
+
+    filebox-server --port 8763 --path <path-to-your-shared-directory>
+
+To run a Filebox client, simply run the following command from any number of client machines:
+
+    filebox-client --address <server-ip>:8763 --mountpoint <path-to-mountpoint>
+
+Navigate to the mountpoint directory, and you can now easily share files using the operating system's normal interface :)
+
+## Building and Testing
+
+### Requirements
+
+The only requirement for building the project is [Docker](https://www.docker.com/), which can be installed on any platform (Windows, Linux, macOS) and provides container technology.
+
+To run tests, you also need [Python 3](https://www.python.org/) and the pytest package installed:
+
+    pip3 install pytest
+ 
+### Compilation
+
+The entire build process, including downloading the dependencies, happens in a Docker container. This build process is defined in the [Dockerfile](Dockerfile).
+
+Additionally, this Docker container cross-compiles Filebox for all supported operating systems. It also automatically run the tests on the Linux container itself.
+
+Simply run the following command:
+
+    cd <path-to-filebox>
+    docker build -t filebox . \
+      && docker rm filebox-build \
+      && docker run --name filebox-build --device /dev/fuse --cap-add SYS_ADMIN -it filebox \
+      && docker cp filebox-build:/build .
+
+And all the binaries should be in the build directory, which looks like:
+
+<img src="docs/build-directory.png" width="700">
+
+### Running Tests
+
+Make sure you have the Filebox binaries in the build directory of the project (near pkg, test, etc). If you compiled using the instructions above, you should be ready.
+
+To run tests, navigate to the test directory and simply run `pytest`.
+
+### Tests Specification
+
+Single test that consists of a Filebox server and 5 clients, all running on the same machine (for simplicity purposes) in different directories.
+
+This test should cover all supported filesystem operations except Truncate. It does the following:
+
+  - Create a directory and write a file to it in some shared directory X.
+  - Make sure the directory and the file appear correctly in all other shared directories.
+  - Rename the new file in X.
+  - Make sure all other shared directories contain the renamed file, and not the original file.
+  - Delete the file and the directory in X.
+  - Make sure all other shared directories don't have the deleted directory.
+
+X is each one of the 5 shared directories.
+
 ## Design
 
 In this section, I will explain some of the design decisions I made in the project.
@@ -28,12 +91,8 @@ I chose to write Filebox in Go because of the *cross platform requirement*. Curr
 
 **Filebox supports the following operations:**
 
-* Create + delete files
-* Create + delete directories
-* Get file attributes
-* Read and write files 
-* List files in a directory
-* Rename
+* Create, open, read, write, rename, truncate and delete files
+* Create, delete and list directories
 
 To simplify the solution, Filebox doesn't support symlinks or permissions (chmod / chown). 
 
@@ -45,32 +104,62 @@ The most prominent one was [Server Message Block (SMB)](https://wiki.wireshark.o
 
 This feature is important for performance because FUSE allows to execute multiple operations in parallel on the virtual directory.  
 
+In order to support dynamically-sized structs (e.g structs that contain strings), I use Go's official [gob](https://golang.org/pkg/encoding/gob/) serialization library.
+
 ### Modules
 
-## Installation
-
-### Requirements
 
 ## Network Protocol Specification
 
-Filebox protocol is based on TCP port 8763.
+The Filebox protocol is based on TCP. It is a request-response protocol like HTTP, but multiple requests can be sent before receiving a response. This is necessary for the filesystem performance.
+
+The protocol is defined in [pkg/protocol/messages.go](pkg/protocol/messages.go).
 
 ### Header
 
 All messages in Filebox's protocol start with the following header:
 
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                              Magic                            |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |            Flags              |         Header Length         |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                           Command ID                          |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-    |                           Data Size                           |
-    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+    type Message struct {
+        MessageID  uint32
+        IsResponse bool
+        Data       interface{}
+        Success    bool
+    }
 
+Messages from client to server are request messages (e.g, `CreateFileRequest`), so the `IsResponse` flag should be set to false. In contrast, messages from server to client are response messages (e.g, `CreateFileResponse`), so the `IsResponse` flag should be set to true.
 
-Remarks:
- * All integers are little endian.
- * The magic is always `0xFB00FB01`. 
- * Currently, the only flag available is the *Response Flag*, which is set if this message is a response (which was sent by the server). Otherwise, it is a request from the client to the server.
+`MessageID` is used to synchronize between messages, since multiple requests can be sent before a response is received. It is an incremented integer, and should be identical in both the matching request and response messages.
+
+`Data` contains a specific request / response message struct, depending on the message type. For example: `CreateFileRequest`, `ReadFileResponse`, etc. The gob library supports deserializing dynamic types such as `interface{}` (which is like `void*` in C).
+
+## Example command: ReadFile
+
+The ReadFile command consists of the following request parameters:
+
+    type ReadFileRequest struct {
+        FileHandle uint64
+        Offset     int64
+        Size       int
+    }
+
+`FileHandle` is a virtual number which represents a file that was opened by an `OpenFile` command. `Offset` and `Size` specify where and how many bytes we wants to read from the file.
+
+The response looks like:
+
+    type ReadFileResponse struct {
+        Data      []byte
+        BytesRead int
+    }
+
+## File info
+
+Various commands return information about one or more files, e.g: `GetFileAttributes`, `ReadDirectory`. Therefore, I use a generic `FileInfo` struct which looks like:
+
+    type FileInfo struct {
+        Name    string      // base name of the file
+        Size    int64       // length in bytes for regular files; system-dependent for others
+        Mode    os.FileMode // file mode bits
+        ModTime time.Time   // modification time
+        IsDir   bool        // abbreviation for Mode().IsDir()
+    }
+
