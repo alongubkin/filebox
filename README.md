@@ -14,6 +14,8 @@ Filebox is my project for the [Networking Workshop](https://www.openu.ac.il/cour
 
 ## Usage
 
+TODO: Install winfsp/osxfuse
+
 First, download the client and server binaries for your operating system from the [GitHub's releases section](https://github.com/alongubkin/filebox/releases).
 
 The following command will open a Filebox server in TCP port 8763. Note that you can choose the directory you want to share via the --path argument:
@@ -31,6 +33,8 @@ Navigate to the mountpoint directory, and you can now easily share files using t
 ### Requirements
 
 The only requirement for building the project is [Docker](https://www.docker.com/), which can be installed on any platform (Windows, Linux, macOS) and provides container technology.
+
+You can use [this link](http://downloaddocker.com/) in order to run Docker without login.
 
 To run tests, you also need [Python 3](https://www.python.org/) and the pytest package installed:
 

@@ -7,6 +7,7 @@ require (
 	github.com/alecthomas/units v0.0.0-20190910110746-680d30ca3117 // indirect
 	github.com/billziss-gh/cgofuse v1.1.0
 	github.com/karalabe/xgo v0.0.0-20190301120235-2d6d1848fb02 // indirect
+	github.com/pkg/errors v0.8.1
 	github.com/sirupsen/logrus v1.4.2
 	golang.org/x/net v0.0.0-20190827160401-ba9fcec4b297 // indirect
 	golang.org/x/sys v0.0.0-20190904154756-749cb33beabd // indirect
