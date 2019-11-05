@@ -64,6 +64,9 @@ def filebox_client():
   assert(check_socket('localhost', FILEBOX_TEST_PORT))
 
   client_directory = os.path.join(tempfile.gettempdir(), str(uuid.uuid4()))
+  if platform.system() == 'Linux':
+    os.mkdir(client_directory)
+    
   client_process = subprocess.Popen([
     get_filebox_executable('filebox-client'),
     '--mountpoint', client_directory,
