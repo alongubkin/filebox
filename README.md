@@ -14,9 +14,13 @@ Filebox is my project for the [Networking Workshop](https://www.openu.ac.il/cour
 
 ## Usage
 
-TODO: Install winfsp/osxfuse
+Prerequisites:
 
-First, download the client and server binaries for your operating system from the [GitHub's releases section](https://github.com/alongubkin/filebox/releases).
+ - On Windows: [WinFsp](http://www.secfs.net/winfsp/)
+ - On macOS: [FUSE for macOS](https://osxfuse.github.io/)
+ - On Linux: Nothing :)
+
+Download the client and server binaries for your operating system from the [GitHub's releases section](https://github.com/alongubkin/filebox/releases).
 
 The following command will open a Filebox server in TCP port 8763. Note that you can choose the directory you want to share via the --path argument:
 
