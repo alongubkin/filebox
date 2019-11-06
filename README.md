@@ -114,9 +114,33 @@ This feature is important for performance because FUSE allows to execute multipl
 
 In order to support dynamically-sized structs (e.g structs that contain strings), I use Go's official [gob](https://golang.org/pkg/encoding/gob/) serialization library.
 
-### Modules
+### Concurrency
 
-TODO: concurrency, go channels, atomic
+The Filebox server needs to support serving multiple clients simultaneously ([RunServer in pkg/server/server.go](pkg/server/server.go)). Additionally, the server needs to be able to handle multiple requests for each client at once ([handleConnection in server.go](pkg/server/server.go)). Therefore, we need a good concurrency framework, and I chose to use goroutines and channels.
+
+Goroutines is a way to run functions in the background. For example the following snippet will run `handleConnection` in the background, without waiting for its result:
+
+    func handleConnection() {
+        // Do some hard work...
+    }
+
+    go handleConnection()
+
+In Go you can execute thousands of goroutines and the Go runtime will take care of them using its built-in thread pool. The maximum number of goroutines that can run in parallel is determined automatically by the machine's resources (memory, CPU cores, etc).
+
+The return value of goroutines is completely ignored. In order to communicate between the goroutine and the calling function, Go provides a mechanism called **channels**. 
+
+In order to create a channel that can communicate an Integer:
+
+    myChannel := make(chan int)
+
+To send a message:
+
+    myChannel <- 5
+
+To receive a message - note that this is a **blocking** operation:
+
+    myNumber := <-myChannel
 
 ## Network Protocol Specification
 
